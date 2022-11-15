@@ -46,8 +46,11 @@ async def start_server() -> None:
 
 
 if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
 
     try:
-        asyncio.run(start_server())
+        loop.run_until_complete(start_server())
     except (OSError, asyncssh.Error) as exc:
         sys.exit('Error starting server: ' + str(exc))
+
+    loop.run_forever()
