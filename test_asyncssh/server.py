@@ -2,13 +2,19 @@
 # private key in it to use as a server host key. An SSH host certificate
 # can optionally be provided in the file ``ssh_host_key-cert.pub``.
 
-import asyncio, asyncssh, crypt, sys
+import crypt
+import asyncio
+import asyncssh
+import os
+import sys
 from typing import Optional
 
 passwords = {'guest': '',  # guest account with no password
              'user123': 'qV2iEadIGV2rw'  # password of 'secretpw'
              }
 
+this_dir = os.path.dirname(os.path.abspath(__file__))
+print(this_dir)
 
 def handle_client(process: asyncssh.SSHServerProcess) -> None:
     process.stdout.write('Welcome to my SSH server, %s!\n' %
@@ -41,7 +47,7 @@ class MySSHServer(asyncssh.SSHServer):
 
 async def start_server() -> None:
     await asyncssh.create_server(MySSHServer, '', 8022,
-                                 server_host_keys=['ssh_host_key'],
+                                 server_host_keys=[os.path.join(this_dir, 'ssh_host_key')],
                                  process_factory=handle_client)
 
 
