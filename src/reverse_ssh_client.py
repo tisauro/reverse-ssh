@@ -23,8 +23,8 @@ async def run_reverse_client() -> None:
     """Make an outbound connection and then become an SSH server on it"""
 
     conn = await asyncssh.connect_reverse(
-        host='localhost', port=8022, server_host_keys=None, #['client_host_key'],
-        authorized_client_keys=None, #'trusted_server_keys',
+        host='localhost', port=8022, server_host_keys=['client_host_key'],
+        authorized_client_keys='trusted_server_keys',
         process_factory=handle_request, encoding=None)
 
     await conn.wait_closed()

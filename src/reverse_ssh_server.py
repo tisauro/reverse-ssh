@@ -25,8 +25,8 @@ async def run_commands(conn: asyncssh.SSHClientConnection) -> None:
 async def start_reverse_server() -> None:
     """Accept inbound connections and then become an SSH client on them"""
 
-    await asyncssh.listen_reverse(port=8022, client_keys=None, #['server_key'],
-                                  known_hosts=None, #'trusted_client_host_keys',
+    await asyncssh.listen_reverse(port=8022, client_keys=['server_key'],
+                                  known_hosts='trusted_client_host_keys',
                                   acceptor=run_commands)
 
 
