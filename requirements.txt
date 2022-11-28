@@ -1,2 +1,5 @@
 asyncio==3.4.3
 asyncssh==2.12.0
+mypy==0.991
+pytest
+pytest-asyncio

@@ -1,8 +1,11 @@
-import asyncio, asyncssh, sys
+import asyncio
+import asyncssh
+import sys
 
 
 async def run_client():
-    async with asyncssh.connect('localhost') as conn:
+    async with asyncssh.connect(host='localhost',
+                                port=8022, username='guest', known_hosts=None) as conn:
         result = await conn.run('echo "Hello!"', check=True)
         print(result.stdout, end='')
 
