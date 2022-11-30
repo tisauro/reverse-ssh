@@ -16,11 +16,27 @@ passwords = {'guest': '',  # guest account with no password
 this_dir = os.path.dirname(os.path.abspath(__file__))
 print(this_dir)
 
-def handle_client(process: asyncssh.SSHServerProcess) -> None:
-    process.stdout.write('Welcome to my SSH server, %s!\n' %
-                         process.get_extra_info('username'))
-    process.exit(0)
+async def handle_client(process: asyncssh.SSHServerProcess) -> None:
+    # process.stdout.write('Welcome to my SSH server, %s!\n' %
+    #                      process.get_extra_info('username'))
+    # process.exit(0)
+    process.stdout.write('Enter numbers one per line, or EOF when done:\n')
 
+    total = 0
+
+    try:
+        async for line in process.stdin:
+            line = line.rstrip('\n')
+            if line:
+                try:
+                    total += int(line)
+                except ValueError:
+                    process.stderr.write('Invalid number: %s\n' % line)
+    except asyncssh.BreakReceived:
+        pass
+
+    process.stdout.write('Total = %s\n' % total)
+    process.exit(0)
 
 class MySSHServer(asyncssh.SSHServer):
     def connection_made(self, conn: asyncssh.SSHServerConnection) -> None:
@@ -35,12 +51,15 @@ class MySSHServer(asyncssh.SSHServer):
 
     def begin_auth(self, username: str) -> bool:
         # If the user's password is the empty string, no auth is required
+        print("SSH password check")
         return passwords.get(username) != ''
 
     def password_auth_supported(self) -> bool:
+        print("in here")
         return True
 
     def validate_password(self, username: str, password: str) -> bool:
+        print("Validate password")
         pw = passwords.get(username, '*')
         return crypt.crypt(password, pw) == pw
 

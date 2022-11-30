@@ -2,7 +2,9 @@ import asyncio
 import asyncssh
 import sys
 
-
+passwords = {'guest': '',                 # guest account with no password
+             'user123': 'qV2iEadIGV2rw'   # password of 'secretpw'
+            }
 async def run_commands(conn: asyncssh.SSHClientConnection) -> None:
     """Run a series of commands on the client which connected to us"""
 

@@ -1,0 +1,32 @@
+version: '2'
+services:
+    server:
+        build:
+            context: .
+            dockerfile: server.dockerfile
+        ports:
+            - "8022:8022"
+        volumes:
+            - .:/app:rw
+        networks:
+            evx_reverse_ssh:
+                aliases:
+                    - ssh-server
+    client:
+        build:
+            context: .
+            dockerfile: client.dockerfile
+        volumes:
+          - .:/app:rw
+        networks:
+            evx_reverse_ssh:
+                aliases:
+                    - ssh-client
+
+networks:
+  evx_reverse_ssh:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+    ipam:
+      driver: default

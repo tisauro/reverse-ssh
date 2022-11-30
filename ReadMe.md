@@ -4,3 +4,7 @@
 
 ### Todo:
 - Create a setup.py file
+
+- 
+- https://linuxhint.com/ssh-authorized-keys-example-usage/
+- 

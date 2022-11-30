@@ -13,4 +13,4 @@ RUN pip install -r requirements.txt
 
 COPY . /app
 EXPOSE 8022
-CMD ["python", "./test_asyncssh/server.py"]
+CMD ["python", "./src/reverse_ssh_server.py"]

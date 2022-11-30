@@ -13,4 +13,4 @@ RUN pip install -r requirements.txt
 
 COPY . /app
 EXPOSE 8022
-CMD ["python", "./src/reverse_ssh_client.py"]
+CMD ["python", "./server.py"]
