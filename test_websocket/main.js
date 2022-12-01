@@ -1,14 +1,18 @@
 import { createBoard, playMove } from "./connect4.js";
+import { createConsole } from "./bash_console.js";
 
 window.addEventListener("DOMContentLoaded", () => {
   // Initialize the UI.
   const board = document.querySelector(".board");
-  createBoard(board);
+  const cons = document.querySelector(".console");
+  // createBoard(board);
+  createConsole(cons);
+
   // Open the WebSocket connection and register event handlers.
   const websocket = new WebSocket("ws://localhost:8001/");
-  initGame(websocket);
-  receiveMoves(board, websocket);
-  sendMoves(board, websocket);
+  // initGame(websocket);
+  // receiveMoves(board, websocket);
+  // sendMoves(board, websocket);
 });
 
 function initGame(websocket) {
