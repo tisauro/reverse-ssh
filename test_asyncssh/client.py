@@ -1,6 +1,6 @@
 import asyncio
 import json
-
+import signal
 import asyncssh
 import functools
 import sys
@@ -15,7 +15,7 @@ PORT = os.environ.get('PORT', 8022)
 
 
 class MySSHClientSession(asyncssh.SSHClientSession):
-    def __init__(self, ws_client: WsSshClient) :
+    def __init__(self, ws_client: WsSshClient):
         self.ws = ws_client
 
     def data_received(self, data: str, datatype: asyncssh.DataType) -> None:
@@ -76,6 +76,14 @@ async def run_client():
 
     async with conn:
         chan, session = await conn.create_session(functools.partial(MySSHClientSession, ws_client))
+
+        # Close the connection when receiving SIGTERM.
+        # loop = asyncio.get_running_loop()
+        # loop.add_signal_handler(
+        #     signal.SIGTERM, loop.create_task, chan.close())
+
+        # Process messages received on the connection.
+
         result = await conn.run('pwd')
         await ws_client.send(create_json_response(result))
         result = await conn.run('ls -la')
@@ -85,7 +93,10 @@ async def run_client():
         result = await conn.run('\t \t')
         await ws_client.send(create_json_response(result))
         # chan.close()
-        await chan.wait_closed()
+        try:
+            await chan.wait_closed()
+        except Exception as e:
+            print(e)
 
     pass
 
@@ -102,10 +113,28 @@ async def run_client():
     #         print(op, '=', result, end='')
 
 
+class GracefulExit(SystemExit):
+    code = 1
+
+
+def raise_graceful_exit(*args):
+    loop = asyncio.get_running_loop()
+    loop.stop()
+    print("Gracefully shutdown")
+    raise GracefulExit()
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, raise_graceful_exit)
+    signal.signal(signal.SIGTERM, raise_graceful_exit)
+
     try:
         asyncio.run(run_client())
     except (OSError, asyncssh.Error) as exc:
         sys.exit('SSH connection failed: ' + str(exc))
+    except GracefulExit:
+        pass
+    except Exception as e:
+        print(e)
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

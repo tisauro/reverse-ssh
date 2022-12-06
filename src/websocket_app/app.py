@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import signal
 import websockets
 from websockets.server import WebSocketServerProtocol
 from typing import Dict
@@ -16,17 +17,20 @@ async def open_connection_event(websocket: WebSocketServerProtocol, device_id: s
     connected = {websocket}
     OPEN_CONNECTIONS[device_id] = connected
     try:
-        message = json.dumps({
-            "type": "reverse-ssh",
-            "action": "open_connection",
-            "device_id": "my_unique_uuid",
-            "status": "done"
-        })
-        await websocket.send(message)
-        async for message in websocket:
-            # Parse a "play" event from the UI.
-            event = json.loads(message)
-            print(event)
+        try:
+            message = json.dumps({
+                "type": "reverse-ssh",
+                "action": "open_connection",
+                "device_id": "my_unique_uuid",
+                "status": "done"
+            })
+            await websocket.send(message)
+            async for message in websocket:
+                # Parse a "play" event from the UI.
+                event = json.loads(message)
+                print(event)
+        except Exception as e:
+            print(e)
     finally:
         del OPEN_CONNECTIONS[device_id]
     pass
@@ -51,10 +55,32 @@ async def handler(websocket: WebSocketServerProtocol) -> None:
     pass
 
 
+class GracefulExit(SystemExit):
+    code = 1
+
+
+def raise_graceful_exit(*args):
+    loop = asyncio.get_running_loop()
+    loop.stop()
+    print("Gracefully shutdown")
+    raise GracefulExit()
+
+
 async def main():
+    # Set the stop condition when receiving SIGTERM.
+
+    signal.signal(signal.SIGINT, raise_graceful_exit)
+    signal.signal(signal.SIGTERM, raise_graceful_exit)
+
     async with websockets.serve(handler, "", 8001):
         await asyncio.Future()  # run forever
 
 
+        # await stop
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except GracefulExit:
+        pass
