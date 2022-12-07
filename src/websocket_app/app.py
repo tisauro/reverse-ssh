@@ -5,17 +5,52 @@ import signal
 import websockets
 from websockets.server import WebSocketServerProtocol
 from typing import Dict
+from src.utils.ssh_connection import SSHConnection
 
 # logging.basicConfig(
 #     level=logging.DEBUG
 # )
 
-OPEN_CONNECTIONS: Dict[str, set] = {}
 
+OPEN_CONNECTIONS: Dict[str, SSHConnection] = {}
+
+
+async def connect_client(websocket: WebSocketServerProtocol, device_id: str) -> None:
+    """
+    Web client connection handler
+    :param websocket: web client socket
+    :param device_id: device_id we want to connect to.
+    :return: None
+    """
+    ssh_connection = OPEN_CONNECTIONS.get(device_id, None)
+    if ssh_connection:
+        ssh_connection.clients.add(websocket)
+        message = json.dumps({
+            "type": "web_client",
+            "action": "connect_client",
+            "device_id": device_id,
+            "status": "connected",
+            "output": "connection not found"
+        })
+    else:
+        message = json.dumps({
+            "type": "web_client",
+            "action": "connect_client",
+            "device_id": device_id,
+            "status": "error",
+            "output": "connection not found"
+        })
+    await websocket.send(message)
 
 async def open_connection_event(websocket: WebSocketServerProtocol, device_id: str) -> None:
-    connected = {websocket}
-    OPEN_CONNECTIONS[device_id] = connected
+    """
+    Connection from one of the dataloggers on site
+    :param websocket: server connection
+    :param device_id: unique identifier of the device, used to create a websocket room
+    :return: None
+    """
+    ssh_connection = SSHConnection(websocket)
+    OPEN_CONNECTIONS[device_id] = ssh_connection
     try:
         try:
             message = json.dumps({
@@ -25,9 +60,29 @@ async def open_connection_event(websocket: WebSocketServerProtocol, device_id: s
                 "status": "done"
             })
             await websocket.send(message)
+
             async for message in websocket:
                 # Parse a "play" event from the UI.
                 event = json.loads(message)
+                if event.get('action') == 'command_result':
+                    '''
+                    command output received from the ssh server
+                    in response to an open connection or
+                    an execute command previously sent from 
+                    a web client.
+                    '''
+                    line = event.get("std_out").split('\n')
+                    # Todo: do this properly, should loop through the list and
+                    # broadcast all messages.
+                    websockets.broadcast(ssh_connection.clients, line)
+                    ssh_connection.buffer.add_to_history(line)
+
+                elif event.get('action') == 'command_execute':
+                    line = ""
+                    ssh_connection.buffer.add_to_history(line)
+                    await websocket.send(line)
+                else:
+                    pass
                 print(event)
         except Exception as e:
             print(e)
@@ -51,6 +106,12 @@ async def handler(websocket: WebSocketServerProtocol) -> None:
         instigated to open a connection
         '''
         await open_connection_event(websocket, event['device_id'])
+    elif event.get('action') == "connect_client":
+        '''
+        action called by webclients who want to send commands
+        to a remote device
+        '''
+        await connect_client(websocket)
 
     pass
 
@@ -74,7 +135,6 @@ async def main():
 
     async with websockets.serve(handler, "", 8001):
         await asyncio.Future()  # run forever
-
 
         # await stop
 
