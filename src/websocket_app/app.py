@@ -4,6 +4,7 @@ import logging
 import signal
 import websockets
 from websockets.server import WebSocketServerProtocol
+from websockets.exceptions import ConnectionClosedError, ConnectionClosed, ConnectionClosedOK
 from typing import Dict
 from src.utils.ssh_connection import SSHConnection
 
@@ -41,6 +42,7 @@ async def connect_client(websocket: WebSocketServerProtocol, device_id: str) -> 
             "output": "connection not found"
         })
     await websocket.send(message)
+
 
 async def open_connection_event(websocket: WebSocketServerProtocol, device_id: str) -> None:
     """
@@ -93,27 +95,28 @@ async def open_connection_event(websocket: WebSocketServerProtocol, device_id: s
 
 async def handler(websocket: WebSocketServerProtocol) -> None:
     # Receive and parse the "init" event from the UI.
-    message = await websocket.recv()
-    event = json.loads(message)
-    # Todo: remove assert add if with logging.
-    assert event["type"] == "reverse-ssh"
-    print(f'message received {str(message)}')
-    # connected = {websocket}
-    # print(type(connected))
-    if event.get('action') == "open_connection":
-        '''
-        action called only by the reverse-ssh server when 
-        instigated to open a connection
-        '''
-        await open_connection_event(websocket, event['device_id'])
-    elif event.get('action') == "connect_client":
-        '''
-        action called by webclients who want to send commands
-        to a remote device
-        '''
-        await connect_client(websocket)
-
-    pass
+    try:
+        message = await websocket.recv()
+        event = json.loads(message)
+        # Todo: remove assert add if with logging.
+        assert event["type"] == "reverse-ssh"
+        print(f'message received {str(message)}')
+        # connected = {websocket}
+        # print(type(connected))
+        if event.get('action') == "open_connection":
+            '''
+            action called only by the reverse-ssh server when 
+            instigated to open a connection
+            '''
+            await open_connection_event(websocket, event['device_id'])
+        elif event.get('action') == "connect_client":
+            '''
+            action called by webclients who want to send commands
+            to a remote device
+            '''
+            await connect_client(websocket)
+    except ConnectionClosedOK:
+        print("Connection Error")
 
 
 class GracefulExit(SystemExit):
