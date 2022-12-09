@@ -46,7 +46,7 @@ async def connect_client(websocket: WebSocketServerProtocol, device_id: str) -> 
 
 async def open_connection_event(websocket: WebSocketServerProtocol, device_id: str) -> None:
     """
-    Connection from one of the dataloggers on site
+    Connection from one of the data loggers on site
     :param websocket: server connection
     :param device_id: unique identifier of the device, used to create a websocket room
     :return: None
@@ -116,7 +116,12 @@ async def handler(websocket: WebSocketServerProtocol) -> None:
             '''
             await connect_client(websocket)
     except ConnectionClosedOK:
+        print("Connection OK")
+
+    except ConnectionClosedError:
         print("Connection Error")
+    except Exception as e:
+        print(f"General Exception {e}")
 
 
 class GracefulExit(SystemExit):

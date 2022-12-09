@@ -3,6 +3,7 @@ import json
 import websockets
 from typing import Union, Iterable, AsyncIterable
 from websockets.typing import Data
+from src.utils.messages import SSHClientConnect
 
 
 class WsSshClient:
@@ -13,12 +14,13 @@ class WsSshClient:
 
     async def connect(self) -> bool:
         self.ws = await websockets.connect(uri=f'{self.url}:{self.port}')
-        message = json.dumps({
-            "type": "reverse-ssh",
-            "action": "open_connection",
-            "device_id": "my_unique_uuid",
-            "status": "new"
-        })
+        # message = json.dumps({
+        #     "type": "reverse-ssh",
+        #     "action": "open_connection",
+        #     "device_id": "my_unique_uuid",
+        #     "status": "new"
+        # })
+        message = str(SSHClientConnect("my_unique_uuid"))
         await self.ws.send(message)
         try:
             # receive confirmation message within 3 seconds.

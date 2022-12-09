@@ -69,6 +69,9 @@ def create_json_response(result):
 
 
 async def run_client():
+    signal.signal(signal.SIGINT, raise_graceful_exit)
+    signal.signal(signal.SIGTERM, raise_graceful_exit)
+
     ws_client = WsSshClient(url="ws://localhost", port=8001)
     await ws_client.connect()
     conn, client = await asyncssh.create_connection(functools.partial(MySSHClient, ws_client), host=IP_ADDRESS,
@@ -126,15 +129,12 @@ def raise_graceful_exit(*args):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    signal.signal(signal.SIGINT, raise_graceful_exit)
-    signal.signal(signal.SIGTERM, raise_graceful_exit)
-
     try:
         asyncio.run(run_client())
     except (OSError, asyncssh.Error) as exc:
         sys.exit('SSH connection failed: ' + str(exc))
     except GracefulExit:
-        pass
+        print("Program terminated by user")
     except Exception as e:
         print(e)
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
