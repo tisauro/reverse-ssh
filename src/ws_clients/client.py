@@ -8,10 +8,7 @@ import os
 from typing import Optional
 from src.ws_clients.ws_ssh_client import WsSshClient
 
-IP_ADDRESS = os.environ.get('IP_ADDRESS')
-USERNAME = os.environ.get('USERNAME', 'guest')
-PASSWORD = os.environ.get('PASSWORD', '')
-PORT = os.environ.get('PORT', 8022)
+
 
 
 class MySSHClientSession(asyncssh.SSHClientSession):
@@ -68,22 +65,22 @@ def create_json_response(result):
     return message
 
 
-async def run_client():
+async def run_ssh_client():
+    IP_ADDRESS = os.environ.get('IP_ADDRESS')
+    SSHUSERNAME = os.environ.get('SSHUSERNAME', 'guest')
+    PASSWORD = os.environ.get('PASSWORD', '')
+    PORT = os.environ.get('PORT', 8022)
+
     signal.signal(signal.SIGINT, raise_graceful_exit)
     signal.signal(signal.SIGTERM, raise_graceful_exit)
 
     ws_client = WsSshClient(url="ws://localhost", port=8001)
     await ws_client.connect()
     conn, client = await asyncssh.create_connection(functools.partial(MySSHClient, ws_client), host=IP_ADDRESS,
-                                                    port=22, username=USERNAME, password=PASSWORD, known_hosts=None)
+                                                    port=22, username=SSHUSERNAME, password=PASSWORD, known_hosts=None)
 
     async with conn:
         chan, session = await conn.create_session(functools.partial(MySSHClientSession, ws_client))
-
-        # Close the connection when receiving SIGTERM.
-        # loop = asyncio.get_running_loop()
-        # loop.add_signal_handler(
-        #     signal.SIGTERM, loop.create_task, chan.close())
 
         # Process messages received on the connection.
 
@@ -130,7 +127,7 @@ def raise_graceful_exit(*args):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     try:
-        asyncio.run(run_client())
+        asyncio.run(run_ssh_client())
     except (OSError, asyncssh.Error) as exc:
         sys.exit('SSH connection failed: ' + str(exc))
     except GracefulExit:

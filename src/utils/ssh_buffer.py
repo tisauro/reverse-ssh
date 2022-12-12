@@ -49,3 +49,7 @@ class SSHBuffer:
 
     def __iter__(self):
         return SSHBufferIterator(self)
+
+    def print_history(self):
+        for message in self:
+            print(message)

@@ -1,5 +1,11 @@
 import json
+from enum import Enum
+
+
 # from typing import Self
+
+class SSHMessageStr(Enum):
+    TYPE = "reverse-ssh"
 
 
 class BaseMessage:

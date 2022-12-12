@@ -75,8 +75,13 @@ async def open_connection_event(websocket: WebSocketServerProtocol, device_id: s
                     '''
                     line = event.get("std_out").split('\n')
                     # Todo: do this properly, should loop through the list and
+
                     # broadcast all messages.
-                    websockets.broadcast(ssh_connection.clients, line)
+                    message = json.dumps({
+                        "message": line
+                    })
+                    websockets.broadcast(ssh_connection.clients, message)
+
                     ssh_connection.buffer.add_to_history(line)
 
                 elif event.get('action') == 'command_execute':
@@ -85,7 +90,8 @@ async def open_connection_event(websocket: WebSocketServerProtocol, device_id: s
                     await websocket.send(line)
                 else:
                     pass
-                print(event)
+                #ssh_connection.buffer.print_history()
+
         except Exception as e:
             print(e)
     finally:
@@ -135,8 +141,9 @@ def raise_graceful_exit(*args):
     raise GracefulExit()
 
 
-async def main():
+async def ws_app_main():
     # Set the stop condition when receiving SIGTERM.
+    print("starting websocket app!")
 
     signal.signal(signal.SIGINT, raise_graceful_exit)
     signal.signal(signal.SIGTERM, raise_graceful_exit)
@@ -145,10 +152,3 @@ async def main():
         await asyncio.Future()  # run forever
 
         # await stop
-
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except GracefulExit:
-        pass

@@ -20,7 +20,7 @@ class WsSshClient:
         #     "device_id": "my_unique_uuid",
         #     "status": "new"
         # })
-        message = str(SSHClientConnect("my_unique_uuid"))
+        message = str(SSHClientConnect("my_unique_uuid", status="new"))
         await self.ws.send(message)
         try:
             # receive confirmation message within 3 seconds.
