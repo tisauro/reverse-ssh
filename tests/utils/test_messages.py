@@ -38,13 +38,6 @@ def test_ssh_client_from_json_construtor():
     print(dir(ssh_client_message))
 
 
-def test_ssh_client_xor():
-    ss_client_1 = SSHClientConnect(device_id="dummy_device", status="new")
-    ss_client_2 = SSHClientConnect(device_id="dummy_device", status="open")
-    ss_client_2 ^ ss_client_1
-    print(ss_client_2)
-
-
 def test_ssh_client_not():
     ss_client_1 = SSHClientConnect(device_id="dummy_device", status="new")
     #ss_client_2 = SSHClientConnect(device_id="dummy_device", status="open")

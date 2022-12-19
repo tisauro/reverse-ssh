@@ -1,14 +1,34 @@
 import asyncio
-import json
 import signal
 import asyncssh
 import functools
 import sys
-import os
 from typing import Optional
 from src.ws_clients.ws_ssh_client import WsSshClient
+from asyncssh import SSHCompletedProcess
+from collections import namedtuple
+from dataclasses import dataclass
 
 
+# SSHClientConnectionDetails = namedtuple("SSHClientConnectionDetails",
+#                                         ['ssh_ip_address',
+#                                          'ssh_username',
+#                                          'ssh_password',
+#                                          'ssh_port',
+#                                          'ws_url',
+#                                          'ws_port',
+#                                          'device_uui'])
+
+## or dataclass makes it easier to specify typing
+@dataclass
+class SSHClientConnectionDetails:
+    ssh_ip_address: str
+    ssh_username: str
+    ssh_password: str
+    ssh_port: int
+    ws_url: str
+    ws_port: int
+    device_uui: str
 
 
 class MySSHClientSession(asyncssh.SSHClientSession):
@@ -17,15 +37,10 @@ class MySSHClientSession(asyncssh.SSHClientSession):
 
     def data_received(self, data: str, datatype: asyncssh.DataType) -> None:
         # print(data, end='')
-        message = json.dumps({
-            "type": "reverse-ssh",
-            "action": "command_result",
-            "device_id": "my_unique_uuid",
-            "status": "ok",
-            "std_out": data,
-            "std_err": '',
-        })
-        asyncio.get_running_loop().create_task(self.ws.send(message))
+        result = SSHCompletedProcess()
+        result.stdout = data
+
+        asyncio.get_running_loop().create_task(self.ws.send_comm_response(result))
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         if exc:
@@ -38,46 +53,33 @@ class MySSHClient(asyncssh.SSHClient):
         self.ws = ws_client
 
     def connection_made(self, conn: asyncssh.SSHClientConnection) -> None:
-        message = json.dumps({
-            "type": "reverse-ssh",
-            "action": "command_result",
-            "device_id": "my_unique_uuid",
-            "status": "ok",
-            "std_out": 'Connection made to %s.' % conn.get_extra_info('peername')[0],
-            "std_err": '',
-        })
-        asyncio.get_running_loop().create_task(self.ws.send(message))
+        result = SSHCompletedProcess()
+        result.stdout = 'Connection made to %s.' % conn.get_extra_info('peername')[0]
+
+        asyncio.get_running_loop().create_task(self.ws.send_comm_response(result))
 
     def auth_completed(self) -> None:
         # asyncio.create_task(self.ws.send('Authentication successful.'))
         pass
 
 
-def create_json_response(result):
-    message = json.dumps({
-        "type": "reverse-ssh",
-        "action": "command_result",
-        "device_id": "my_unique_uuid",
-        "status": "ok",
-        "std_out": result.stdout,
-        "std_err": result.stderr,
-    })
-    return message
-
-
-async def run_ssh_client():
-    IP_ADDRESS = os.environ.get('IP_ADDRESS')
-    SSHUSERNAME = os.environ.get('SSHUSERNAME', 'guest')
-    PASSWORD = os.environ.get('PASSWORD', '')
-    PORT = os.environ.get('PORT', 8022)
-
+async def run_ssh_client(conn_details: SSHClientConnectionDetails):
     signal.signal(signal.SIGINT, raise_graceful_exit)
     signal.signal(signal.SIGTERM, raise_graceful_exit)
 
-    ws_client = WsSshClient(url="ws://localhost", port=8001)
+    # Websocket connection
+    ws_client = WsSshClient(url=conn_details.ws_url,
+                            port=conn_details.ws_port,
+                            my_uuid=conn_details.device_uui)
     await ws_client.connect()
-    conn, client = await asyncssh.create_connection(functools.partial(MySSHClient, ws_client), host=IP_ADDRESS,
-                                                    port=22, username=SSHUSERNAME, password=PASSWORD, known_hosts=None)
+
+    # Ssh connection
+    conn, client = await asyncssh.create_connection(functools.partial(MySSHClient, ws_client),
+                                                    host=conn_details.ssh_ip_address,
+                                                    port=int(conn_details.ssh_port),
+                                                    username=conn_details.ssh_username,
+                                                    password=conn_details.ssh_password,
+                                                    known_hosts=None)
 
     async with conn:
         chan, session = await conn.create_session(functools.partial(MySSHClientSession, ws_client))
@@ -85,13 +87,14 @@ async def run_ssh_client():
         # Process messages received on the connection.
 
         result = await conn.run('pwd')
-        await ws_client.send(create_json_response(result))
+
+        await ws_client.send_comm_response(result)
         result = await conn.run('ls -la')
-        await ws_client.send(create_json_response(result))
+        await ws_client.send_comm_response(result)
         result = await conn.run('cat test_')
-        await ws_client.send(create_json_response(result))
+        await ws_client.send_comm_response(result)
         result = await conn.run('\t \t')
-        await ws_client.send(create_json_response(result))
+        await ws_client.send_comm_response(result)
         # chan.close()
         try:
             await chan.wait_closed()
@@ -99,18 +102,6 @@ async def run_ssh_client():
             print(e)
 
     pass
-
-    # async with asyncssh.connect(host=IP_ADDRESS,
-    #                             port=22, username=USERNAME, password=PASSWORD, known_hosts=None) as conn:
-    #     result = await conn.run('echo "Hello!"', check=True)
-    #     print(result.stdout, end='')
-    #     result = await conn.run('ls -la', check=True)
-    #     print(result.stdout, end='')
-    # async with conn.create_process('bc') as process:
-    #     for op in ['2+2', '1*2*3*4', '2^32']:
-    #         process.stdin.write(op + '\n')
-    #         result = await process.stdout.readline()
-    #         print(op, '=', result, end='')
 
 
 class GracefulExit(SystemExit):
@@ -122,16 +113,3 @@ def raise_graceful_exit(*args):
     loop.stop()
     print("Gracefully shutdown")
     raise GracefulExit()
-
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    try:
-        asyncio.run(run_ssh_client())
-    except (OSError, asyncssh.Error) as exc:
-        sys.exit('SSH connection failed: ' + str(exc))
-    except GracefulExit:
-        print("Program terminated by user")
-    except Exception as e:
-        print(e)
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/

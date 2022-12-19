@@ -7,6 +7,8 @@ from websockets.server import WebSocketServerProtocol
 from websockets.exceptions import ConnectionClosedError, ConnectionClosed, ConnectionClosedOK
 from typing import Dict
 from src.utils.ssh_connection import SSHConnection
+from src.utils import const
+from src.utils.messages import SSHClientConnect
 
 # logging.basicConfig(
 #     level=logging.DEBUG
@@ -44,6 +46,19 @@ async def connect_client(websocket: WebSocketServerProtocol, device_id: str) -> 
     await websocket.send(message)
 
 
+async def broadcast(clients, message: list) -> None:
+
+    # Todo: do this properly, should loop through the list and
+
+    # broadcast all messages.
+    for msg in message:
+        message = json.dumps({
+            "message": message
+        })
+        websockets.broadcast(clients, msg)
+        print(f"$: {msg}")
+
+
 async def open_connection_event(websocket: WebSocketServerProtocol, device_id: str) -> None:
     """
     Connection from one of the data loggers on site
@@ -55,17 +70,16 @@ async def open_connection_event(websocket: WebSocketServerProtocol, device_id: s
     OPEN_CONNECTIONS[device_id] = ssh_connection
     try:
         try:
-            message = json.dumps({
-                "type": "reverse-ssh",
-                "action": "open_connection",
-                "device_id": "my_unique_uuid",
-                "status": "done"
-            })
-            await websocket.send(message)
+            message = SSHClientConnect(device_id=device_id, status=const.RESPONSE_OPEN)
+            await websocket.send(str(message))
 
             async for message in websocket:
                 # Parse a "play" event from the UI.
                 event = json.loads(message)
+                if event.get("device_id") != device_id:
+                    # Todo: respond with an error message and close this connection
+                    print("wrong device id")
+                    pass
                 if event.get('action') == 'command_result':
                     '''
                     command output received from the ssh server
@@ -74,13 +88,8 @@ async def open_connection_event(websocket: WebSocketServerProtocol, device_id: s
                     a web client.
                     '''
                     line = event.get("std_out").split('\n')
-                    # Todo: do this properly, should loop through the list and
 
-                    # broadcast all messages.
-                    message = json.dumps({
-                        "message": line
-                    })
-                    websockets.broadcast(ssh_connection.clients, message)
+                    await broadcast(ssh_connection.clients, line)
 
                     ssh_connection.buffer.add_to_history(line)
 
@@ -104,23 +113,23 @@ async def handler(websocket: WebSocketServerProtocol) -> None:
     try:
         message = await websocket.recv()
         event = json.loads(message)
-        # Todo: remove assert add if with logging.
-        assert event["type"] == "reverse-ssh"
-        print(f'message received {str(message)}')
-        # connected = {websocket}
-        # print(type(connected))
-        if event.get('action') == "open_connection":
-            '''
-            action called only by the reverse-ssh server when 
-            instigated to open a connection
-            '''
-            await open_connection_event(websocket, event['device_id'])
-        elif event.get('action') == "connect_client":
+
+        if event["type"] == const.SSH_MSG_TYPE:
+            if event.get('action') == const.SSH_ACT_CONNECTION:
+                '''
+                action called only by the reverse-ssh server when 
+                instigated to open a connection
+                '''
+                await open_connection_event(websocket, event['device_id'])
+        elif event.get('action') == const.WEB_MSG_TYPE:
             '''
             action called by webclients who want to send commands
             to a remote device
             '''
             await connect_client(websocket)
+        else:
+            raise NotImplemented
+
     except ConnectionClosedOK:
         print("Connection OK")
 

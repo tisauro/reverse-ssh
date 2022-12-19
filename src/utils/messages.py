@@ -1,11 +1,5 @@
 import json
-from enum import Enum
-
-
-# from typing import Self
-
-class SSHMessageStr(Enum):
-    TYPE = "reverse-ssh"
+from src.utils import const
 
 
 class BaseMessage:
@@ -23,12 +17,12 @@ class BaseMessage:
 
 class SSHMessage(BaseMessage):
     def __init__(self, device_id: str):
-        super().__init__(msg_type="reverse-ssh", device_id=device_id)
+        super().__init__(msg_type=const.SSH_MSG_TYPE, device_id=device_id)
 
     @classmethod
     def from_json(cls, json_msg: str):
         msg: dict = json.loads(json_msg)
-        if msg.get("type") == "reverse-ssh":
+        if msg.get("type") == const.SSH_MSG_TYPE:
             device_id = msg.get("device_id")
             return cls(device_id)
         else:
@@ -39,14 +33,14 @@ class SSHClientConnect(SSHMessage):
 
     def __init__(self, device_id: str, status: str) -> None:
         super().__init__(device_id)
-        self.action = "open_connection"
+        self.action = const.SSH_ACT_CONNECTION
         self.status = status
 
     @classmethod
     def from_json(cls, json_msg: str):
         msg: dict = json.loads(json_msg)
-        if msg.get("type") == "reverse-ssh" and \
-                msg.get("action") == "open_connection":
+        if msg.get("type") == const.SSH_MSG_TYPE and \
+                msg.get("action") == const.SSH_ACT_CONNECTION:
             status = msg.get("status")
             device_id = msg.get("device_id")
             return cls(device_id, status)
@@ -59,14 +53,9 @@ class SSHClientConnect(SSHMessage):
         return self.status == other.status and self.action == other.action \
                and self.type == other.type and self.device_id == other.device_id
 
-    def __xor__(self, other):
-        print("in here")
-
-        pass
-
     def __invert__(self):
-        if self.status == "new":
-            self.status = "done"
+        if self.status == const.REQUEST_OPEN:
+            self.status = const.RESPONSE_OPEN
         else:
-            self.status = 'new'
+            self.status = const.REQUEST_OPEN
         return self
