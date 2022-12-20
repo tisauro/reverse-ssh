@@ -55,4 +55,4 @@ class WsSshClient:
 
     async def send_comm_response(self, result: SSHCompletedProcess):
         msg = self.create_json_response(result)
-        pass
+        await  self.ws.send(message=msg)

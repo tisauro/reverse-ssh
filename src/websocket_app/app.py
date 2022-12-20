@@ -8,7 +8,7 @@ from websockets.exceptions import ConnectionClosedError, ConnectionClosed, Conne
 from typing import Dict
 from src.utils.ssh_connection import SSHConnection
 from src.utils import const
-from src.utils.messages import SSHClientConnect
+from src.utils.messages import SSHClientConnect, WebClientConnect, WebClientHistMessage
 
 # logging.basicConfig(
 #     level=logging.DEBUG
@@ -18,7 +18,7 @@ from src.utils.messages import SSHClientConnect
 OPEN_CONNECTIONS: Dict[str, SSHConnection] = {}
 
 
-async def connect_client(websocket: WebSocketServerProtocol, device_id: str) -> None:
+async def connect_web_client(websocket: WebSocketServerProtocol, device_id: str) -> None:
     """
     Web client connection handler
     :param websocket: web client socket
@@ -26,24 +26,34 @@ async def connect_client(websocket: WebSocketServerProtocol, device_id: str) -> 
     :return: None
     """
     ssh_connection = OPEN_CONNECTIONS.get(device_id, None)
+    # if remote device ssh channel is open
     if ssh_connection:
-        ssh_connection.clients.add(websocket)
-        message = json.dumps({
-            "type": "web_client",
-            "action": "connect_client",
-            "device_id": device_id,
-            "status": "connected",
-            "output": "connection not found"
-        })
+        try:
+            # Open connection
+            ssh_connection.clients.add(websocket)
+            message = WebClientConnect(device_id, const.RESPONSE_OPEN)
+            await websocket.send(str(message))
+
+            # Send the history to the newly connected client
+            for hist in ssh_connection.buffer:
+                ## create history message
+                msg = WebClientHistMessage(device_id, hist)
+                await websocket.send(str(msg))
+
+            print("Web Client connection open")
+            # wait for client messages
+            async for message in websocket:
+                # Parse a "play" event from the UI.
+                event = json.loads(message)
+                print(f"WebClient sent: {event}")
+
+        finally:
+            print("Web client connection terminated")
+            ssh_connection.clients.discard(websocket)
     else:
-        message = json.dumps({
-            "type": "web_client",
-            "action": "connect_client",
-            "device_id": device_id,
-            "status": "error",
-            "output": "connection not found"
-        })
-    await websocket.send(message)
+        # ssh connection is not open reject web client connection
+        message = WebClientConnect(device_id, const.RESPONSE_REJECTED)
+        await websocket.send(str(message))
 
 
 async def broadcast(clients, message: list) -> None:
@@ -56,7 +66,7 @@ async def broadcast(clients, message: list) -> None:
             "message": message
         })
         websockets.broadcast(clients, msg)
-        print(f"$: {msg}")
+        print(f"remote: $ {msg}")
 
 
 async def open_connection_event(websocket: WebSocketServerProtocol, device_id: str) -> None:
@@ -115,18 +125,19 @@ async def handler(websocket: WebSocketServerProtocol) -> None:
         event = json.loads(message)
 
         if event["type"] == const.SSH_MSG_TYPE:
-            if event.get('action') == const.SSH_ACT_CONNECTION:
+            if event.get('action') == const.ACT_CONNECTION:
                 '''
                 action called only by the reverse-ssh server when 
                 instigated to open a connection
                 '''
                 await open_connection_event(websocket, event['device_id'])
-        elif event.get('action') == const.WEB_MSG_TYPE:
+        elif event.get('type') == const.WEB_MSG_TYPE:
             '''
             action called by webclients who want to send commands
             to a remote device
             '''
-            await connect_client(websocket)
+            if event.get('action') == const.ACT_CONNECTION:
+                await connect_web_client(websocket, event['device_id'])
         else:
             raise NotImplemented
 

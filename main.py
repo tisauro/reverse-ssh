@@ -1,6 +1,7 @@
 import asyncio
 from src.websocket_app.app import ws_app_main
 from src.ws_clients.client import run_ssh_client, SSHClientConnectionDetails
+# from src.web_client.console import run_web_client, WsWebClientConnectionDetails
 import argparse
 import os
 
@@ -23,14 +24,14 @@ if __name__ == '__main__':
     parser.add_argument("app_type", choices=["ws_app_server", "ws_ssh_client", "ws_web_client"],
                         help="Application type to run")
 
-    parser.add_argument("ssh_ip_address", help="IP address off the remote ssh server")
-    parser.add_argument("ssh_username", help="User name for the remote ssh server")
-    parser.add_argument("ssh_password", help="Password the remote ssh server")
-    parser.add_argument("ssh_port", help="Port the remote ssh server", default=22)
+    parser.add_argument("--ssh_ip_address", help="IP address off the remote ssh server")
+    parser.add_argument("--ssh_username", help="User name for the remote ssh server")
+    parser.add_argument("--ssh_password", help="Password the remote ssh server")
+    parser.add_argument("--ssh_port", help="Port the remote ssh server", default=22)
 
-    parser.add_argument("ws_url", help="Websocket server url", default="ws://localhost")
-    parser.add_argument("ws_port", help="Websocket server port", default=8001)
-    parser.add_argument("device_uuid", help="Device Unique Identifier", default="random_uuid")
+    parser.add_argument("--ws_url", help="Websocket server url", default="ws://localhost", required=False)
+    parser.add_argument("--ws_port", help="Websocket server port", default=8001, required=False)
+    parser.add_argument("--device_uuid", help="Device Unique Identifier", default="random_uuid", required=False)
 
     args = parser.parse_args()
 
@@ -41,12 +42,16 @@ if __name__ == '__main__':
             pass
     elif args.app_type == "ws_ssh_client":
 
-        if args.ssh_ip_address is None or args.ssh_username is None or args.ssh_password is None:
-            parser.error('ssh_ip_address, ssh_username and ssh_password are required')
+        # if not provided at command line try to load from environment variables
+        if not args.ssh_ip_address:
+            args.ssh_ip_address = os.environ.get('SSH_IP_ADDRESS', None)
+        if not args.ssh_username:
+            args.ssh_username = os.environ.get('SSH_USERNAME', None)
+        if not args.ssh_password:
+            args.ssh_password = os.environ.get('SSH_PASSWORD', None)
 
-        SSH_IP_ADDRESS = os.environ.get('SSH_IP_ADDRESS')
-        SSH_USERNAME = os.environ.get('SSH_USERNAME')
-        SSH_PASSWORD = os.environ.get('SSH_PASSWORD')
+        if args.ssh_ip_address is None or args.ssh_username is None or args.ssh_password is None:
+            parser.error('ssh_ip_address, ssh_username and ssh_password are required with ws_ssh_client')
 
         conn_details = SSHClientConnectionDetails(
             ssh_ip_address=args.ssh_ip_address,
@@ -63,6 +68,17 @@ if __name__ == '__main__':
         except GracefulExit:
             pass
     elif args.app_type == "ws_web_client":
-        print("not definet yet")
+
+        # conn_details = WsWebClientConnectionDetails(
+        #     ws_url=args.ws_url,
+        #     ws_port=args.ws_port,
+        #     device_uui=args.device_uuid,
+        # )
+        #
+        # try:
+        #     asyncio.run(run_web_client(conn_details))
+        # except GracefulExit:
+        pass
+
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
